@@ -1593,6 +1593,9 @@ If you'd like to contribute or donate to this project, please donate in Dogecoin
 
 This software is Open-source, Decentralized, an FREE to use, Donations are accepted, but never expected, to support The Contributers of Doginals send any Donations in Dogecoin to the following Contributors:
 
+<img width="758" height="242" alt="image" src="https://github.com/user-attachments/assets/0e25c885-5a01-4b77-9206-096b234ec97b" />
+
+
 ***You can donate to*** **Duney** ***here:***
 
 "handle": ***"SirDuney"*** "at": [***"@SirDuney"***](https://x.com/sirduney))
