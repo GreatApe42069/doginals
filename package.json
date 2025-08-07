@@ -1,18 +1,62 @@
 {
   "name": "doginals",
-  "version": "1.0.0",
-  "description": "A minter and protocol for inscriptions on Dogecoin",
+  "version": "4.2.0",
+  "description": "A comprehensive minter and protocol for inscriptions, DRC-20, Dunes, and more on Dogecoin",
   "main": "doginals.js",
   "author": "apezord",
-  "license": "MIT",
+  "license": "CC0-1.0",
   "bin": {
     "doginals": "doginals.js"
   },
+  "lint-staged": {
+    "**/*": "prettier --write --ignore-unknown"
+  },
   "dependencies": {
-    "axios": "^1.3.4",
+    "axios": "^1.7.2",
+    "axios-retry": "^4.4.1",
+    "base26": "^0.1.0",
     "bitcore-lib-doge": "^8.25.46",
-    "dotenv": "^16.0.3",
+    "cheerio": "^1.0.0-rc.12",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
     "express": "^4.18.2",
-    "mime-types": "^2.1.35"
-  }
+    "geoip-lite": "^1.4.10",
+    "gltfpack": "^0.20.0",
+    "json5": "^2.2.3",
+    "mime-types": "^2.1.35",
+    "prompts": "^2.4.2",
+    "satoshi-bitcoin": "^1.0.5",
+    "tiny-secp256k1": "^2.2.3"
+  },
+  "devDependencies": {
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^2.8.8"
+  },
+  "scripts": {
+    "prepare": "husky install"
+  },
+  "keywords": [
+    "doginals",
+    "dogecoin",
+    "doge",
+    "dogeord",
+    "ord",
+    "ordinals",
+    "drc20",
+    "dogecoin",
+    "dns",
+    "dogemap",
+    "dunes",
+    "spendable",
+    "shibescription",
+    "inscription"
+  ],
+  "contributors": [
+    { "name": "Duney", "url": "https://x.com/sirduney" },
+    { "name": "GreatApe", "url": "https://x.com/Greatape42069E" },
+    { "name": "Apezord", "url": "https://x.com/apezord" },
+    { "name": "DPAY", "url": "https://x.com/Dogepay_DRC20" },
+    { "name": "Big Chief", "url": "https://x.com/MartinSeeger2" }
+  ]
 }
