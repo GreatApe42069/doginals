@@ -16,7 +16,7 @@
 ## 🔍 Overview
 ### Doginals - Dogecoin Protocol & Inscriptions CLI Tool
 
-A comprehensive minter and protocol for all inscriptions on Dogecoin, now updated with added support for Delegation rights, Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and marketplace interactions, and advanced UTXO handling on Dogecoin. In this repo is the full UNLEASHED & ENHANCED  `doginals.js` script with the necessary coresponding files, updates, instructions, and examples to handle delegate and child inscriptions, Regular Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and limited marketplace interactions "again, we're working on it". Also included in this repo are `Doginals.md Readme.md`, a `Delegates.md`, `DNS.md`, and `Dunes.md' file  in the docs folder, detailing each individual protocol in depth, for better understanding.
+A comprehensive minter and protocol for all inscriptions on Dogecoin, now updated with added support for Delegation rights, Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and marketplace interactions, and advanced UTXO handling on Dogecoin. In this repo is the full UNLEASHED & ENHANCED  `doginals.js` script with the necessary coresponding files, updates, instructions, and examples to handle delegate and child inscriptions, Regular Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and limited marketplace interactions "again, we're working on it". Also included in this repo are `Doginals.md`, `Readme.md`, a `Delegates.md`, `DNS.md`, and `Dunes.md` file  in the docs folder, detailing each individual protocol in depth, for better understanding.
 
 
 ## ⚠️⚠️⚠️ Important ⚠️⚠️⚠️
