@@ -205,8 +205,8 @@ Back up your wallet.dat file (in the data directory) and secure it.
 **Clone the repository and install dependencies:**
 
 ```
-git clone https://github.com/your-repo/doginals.git
-cd <path to your doginals folder, e.g."C:\Doginals-main">
+git clone [https://github.com/your-repo/doginals.git](https://github.com/GreatApe42069/doginals.git)
+cd <path to your doginals folder> , e.g."C:\Doginals-main"
 npm install
 npm audit fix
 ```
