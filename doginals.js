@@ -84,23 +84,6 @@ async function rpcCall(method, params = []) {
       method,
       params,
     }, { auth: RPC_AUTH });
-    if (res.data.error) throw new Error(res.data.error.message);
-    return res.data.result;
-  } catch (e) {
-    console.warn(`RPC ${method} failed: ${e.message}. Falling back if applicable.`);
-    throw e;
-  }
-}
-
-// RPC Helper: Generic POST wrapper
-async function rpcCall(method, params = []) {
-  try {
-    const res = await axios.post(RPC_URL, {
-      jsonrpc: "1.0",
-      id: "doginals",
-      method,
-      params,
-    }, { auth: RPC_AUTH });
     if (res.data.error) {
       console.error(`RPC Error: ${JSON.stringify(res.data.error)}`);
       throw new Error(res.data.error.message);
@@ -177,7 +160,7 @@ async function listUnspent(minconf = 0, maxconf = 9999999, addresses = [], inclu
   }
 }
 
-async function listTransactions(account = "*", count = 100, skip = 0, includeWatchonly = false) {
+async function listTransactions(account = "*", count = 10000, skip = 0, includeWatchonly = true) {
   try {
     return await rpcCall("listtransactions", [account, count, skip, includeWatchonly]);
   } catch (e) {
@@ -186,6 +169,30 @@ async function listTransactions(account = "*", count = 100, skip = 0, includeWat
   }
 }
 
+async function extractOpMessageAll() {
+  const wallet = JSON.parse(fs.readFileSync(WALLET_PATH));
+  // Fetch all transactions for the wallet address
+  const transactions = await listTransactions(wallet.address, 10000, 0, true);
+  const txids = transactions.map(tx => tx.txid);
+  const txMessages = await getTxOpReturnMessages(txids);
+  let messageCount = 0;
+  console.log("OP_RETURN Messages in Wallet Transaction History:");
+  for (const txid of txids) {
+    const messages = txMessages.get(txid);
+    if (messages && messages.length > 0) {
+      console.log(`  TXID: ${txid}`);
+      messages.forEach((msg, i) => {
+        console.log(`    Message ${i + 1}: ${msg}`);
+      });
+      messageCount += messages.length;
+    }
+  }
+  if (messageCount === 0) {
+    console.log("  No OP_RETURN messages found in wallet history.");
+  } else {
+    console.log(`Total OP_RETURN messages found: ${messageCount}`);
+  }
+}
 async function getMempoolEntry(txid) {
   try {
     return await rpcCall("getmempoolentry", [txid]);
@@ -232,22 +239,21 @@ async function getInscriptionIdForUtxo(txid, vout) {
       const match = inscriptionLink.match(/\/(shibescription|inscription)\/(.+)$/);
       if (match) return match[2];
     }
-    // Validate with RPC to ensure TX exists
-    try {
-      await getRawTransaction(txid, true);
-      return null; // No inscription found, but TX is valid
-    } catch (rpcErr) {
-      console.warn(`RPC validation failed for ${txid}:${vout}: ${rpcErr.message}`);
-      return null;
-    }
+    // If no inscription, validate TX existence with RPC
+    await getRawTransaction(txid, true);
+    return null; // No inscription found
   } catch (e) {
-    console.warn(`ORD API failed for ${txid}:${vout}: ${e.message}`);
-    // Fallback to RPC for basic TX check
+    // Suppress warning for 404 errors (no inscription found)
+    if (e.response?.status !== 404) {
+      console.warn(`ORD API failed for ${txid}:${vout}: ${e.message}`);
+    }
+    // Fallback to RPC for OP_RETURN check
     try {
       const rawTx = await getRawTransaction(txid, true);
       if (rawTx.vout[vout]) {
-        const script = Script.fromHex(rawTx.vout[vout].scriptPubKey.hex);
-        if (script.isNullData()) {
+        const scriptHex = rawTx.vout[vout].scriptPubKey.hex;
+        const script = new Script(scriptHex);
+        if (script.isDataOut()) {
           const inscription = await extract(txid, vout, false);
           if (inscription?.contentType?.startsWith("application/")) {
             return `${txid}i${vout}`;
@@ -684,6 +690,8 @@ async function getMempoolMetrics() {
 }
 async function main() {
   const cmd = process.argv[2];
+
+  // Handle pending transactions rebroadcast
   if (fs.existsSync("pending-txs.json")) {
     console.log("Found pending-txs.json. Rebroadcasting...");
     const txs = JSON.parse(fs.readFileSync("pending-txs.json"));
@@ -697,9 +705,13 @@ async function main() {
     }
     return;
   }
+
+  // Early returns for specific commands
   if (cmd === "rebuild-wallet") return await rebuildWallet();
   if (cmd === "show-pending") return await showPending();
   if (cmd === "printAllUtxos") return await printAllUtxos();
+
+  // Switch for all other commands
   switch (cmd) {
     case "wallet":
       return await handleWallet();
@@ -727,56 +739,58 @@ async function main() {
       return await rebuildWallet();
     case "index-mempool":
       return await indexMempoolAndPending();
-    case "market":
-      console.log("🚧 Marketplace module not yet fully implemented.");
-      return;
-    case "dogemaps":
-      console.log("🗺️ Dogemaps feature not fully implemented, is still under development.");
-      return;
-    case "delegate":
-      console.log("🔐 Delegate logic stub called (implement logic or disabled if unused).");
-      return;
-    case "server":
-      console.log("🌐 Such Server launching soon (API/explorer not active).");
-      return;
     case "delegate":
       return await handleDelegate();
+    case "extractOpMessage":
+      if (process.argv.length < 4) {
+        console.error("Usage: node . extractOpMessage <txid>");
+        process.exit(1);
+      }
+      const txid = process.argv[3];
+      await extractOpMessage(txid);
+      break;
+    case "extractOpMessageAll":
+      await extractOpMessageAll();
+      break;
     default:
       console.error(`Unknown command: ${cmd}
 You must run each command using: node . <command> [...args]
 Available commands:
   Wallet:
-    wallet new Create a new wallet
-    wallet sync Sync with chain + ord
-    wallet balance Show wallet balances
-    wallet split <count> [amount_per_split] Split balance into equal UTXOs only using spendable utxos
+    wallet new                   Create a new wallet
+    wallet sync                  Sync with chain + ord
+    wallet balance               Show wallet balances
+    wallet split <count> [amount_per_split] Split balance into equal UTXOs only using spendable UTXOs
     wallet send <addr> <amt> [msg] Send DOGE to address (optional OP_RETURN)
     wallet sendutxo <txid> <vout> <addr> [msg] Send specific UTXO with optional message
   Minting:
     mint <addr> <type|file> <hex> [delegate] [msg] Mint content to Doginals
-    inscribe Internal function used for minting logic
+    inscribe                     Internal function used for minting logic
   DNS:
     dnsDeploy <ns> [about] [avatar] Deploy a new DNS namespace
     dnsReg <name> [avatar] [rev] [relay] Register a DNS name with optional metadata
   Dunes:
-    printDunes Print all Dunes from wallet
+    printDunes                   Print all Dunes from wallet
     printDuneBalance <name> [address] Check balance of a specific Dune token
-    decodeDunesScript <script> Decode OP_RETURN Dunes script
+    decodeDunesScript <script>   Decode OP_RETURN Dunes script
   UTXO Management:
-    printAllUtxos Show all wallet UTXOs
-    printSafeUtxos List only safe/spendable UTXOs
-    show-pending Display UTXOs pending in mempool
-    rebuild-wallet Rebuild wallet from scratch
-    index-mempool Manually trigger mempool indexing
+    printAllUtxos                Show all wallet UTXOs
+    printSafeUtxos               List only safe/spendable UTXOs
+    show-pending                 Display UTXOs pending in mempool
+    rebuild-wallet               Rebuild wallet from scratch
+    index-mempool                Manually trigger mempool indexing
+  OP_RETURN Messages:
+    extractOpMessage <txid>      Extract OP_RETURN messages from a specific TXID
+    extractOpMessageAll          Extract all OP_RETURN messages from wallet transaction history
   Misc:
-    delegate Handle delegation-related operations
-    doge20 DRC-20 explorer/manager
-    dogemaps [future] Handle Dogemap entries
-    market Marketplace interface (if implemented)
-    server Launch optional REST/Explorer server
-Deploy a delegate inscription example more in readme:
-delegate deploy <address> <rights> <limit> [expiration] [content_types] [rate_limit] [geo_ip_restrictions] [transfer_rights] [min_wallet_balance] [metadata]
-delegate transfer <address> <delegateId> <amount> Transfer delegate rights
+    delegate                     Handle delegation-related operations
+    doge20                       DRC-20 explorer/manager
+    dogemaps [future]            Handle Dogemap entries
+    market                       Marketplace interface (if implemented)
+    server                       Launch optional REST/Explorer server
+Deploy a delegate inscription example (see readme for more details):
+  delegate deploy <address> <rights> <limit> [expiration] [content_types] [rate_limit] [geo_ip_restrictions] [transfer_rights] [min_wallet_balance] [metadata]
+  delegate transfer <address> <delegateId> <amount> Transfer delegate rights
 `);
       process.exit(1);
   }
@@ -1280,6 +1294,15 @@ async function sendDunesNoProtocol() {
     console.error(`❌ Message exceeds ${MAX_OP_RETURN_BYTES}-byte OP_RETURN limit.`);
     process.exit(1);
   }
+  let opReturnData;
+  if (message.startsWith('hex:')) {
+    opReturnData = Buffer.from(message.slice(4), 'hex');
+  } else if (message.startsWith('base64:')) {
+    opReturnData = Buffer.from(message.slice(7), 'base64');
+  } else {
+    opReturnData = Buffer.from(message, 'utf8');
+  }
+  opReturnData = opReturnData.slice(0, MAX_OP_RETURN_BYTES);
   const dunesUtxos = await Promise.all(
     wallet.utxos.map(async (u) => {
       const dunes = await getDunesForUtxo(`${u.txid}:${u.vout}`);
@@ -1499,59 +1522,82 @@ async function decodeDunesScript(script) {
   if (!script) throw new Error("Please provide a script to decode");
   const parts = script.split(" ");
   if (parts[0] !== "OP_RETURN") throw new Error("Not an OP_RETURN script");
-  return { protocol: parts[1], data: parts.slice(2).join(" ") };
-}
-// Enhanced extract function
-async function extract(txid, vout = 0, showLogs = false) {
-  if (showLogs) console.log(`Extracting inscription for TXID: ${txid}, VOUT: ${vout}`);
-  let contentType, data;
-  // Try ORD API first
-  try {
-    const ordRes = await ordApi.get(`/content/${txid}i${vout}`, { responseType: "arraybuffer" });
-    data = Buffer.from(ordRes.data);
-    contentType = ordRes.headers["content-type"] || detectMimeType(data, `${txid}i${vout}`);
-    if (showLogs) console.log(`✔️ ORD API: ${contentType}, Data length: ${data.length}`);
-    return { contentType, data };
-  } catch (ordError) {
-    if (showLogs) console.warn(`ORD API failed for ${txid}:${vout}: ${ordError.message}`);
-  }
-  // Fallback to RPC
-  try {
-    const rawTx = await axios.post(RPC_URL, {
-      jsonrpc: "1.0", id: "doginals", method: "getrawtransaction", params: [txid, true]
-    }, { auth: RPC_AUTH });
-    const tx = rawTx.data.result;
-    const output = tx.vout[vout];
-    if (output.scriptPubKey.type === "nulldata") {
-      // OP_RETURN script (e.g., Dunes)
-      const script = Script.fromHex(output.scriptPubKey.hex);
-      data = Buffer.concat(script.chunks.slice(1).map(chunk => chunk.buf || Buffer.alloc(0)));
-      contentType = detectMimeType(data, `${txid}:${vout}`);
-    } else {
-      // Check input script for inscription data (e.g., NFTs)
-      const scriptHex = tx.vin[0].scriptSig?.hex;
-      if (!scriptHex) throw new Error("No scriptSig found");
-      const script = Script.fromHex(scriptHex);
-      const chunks = script.chunks;
-      if (chunks[0]?.buf?.toString("utf-8") === "ord") {
-        contentType = chunks[2]?.buf?.toString("utf-8") || "application/octet-stream";
-        data = Buffer.alloc(0);
-        let i = 3;
-        while (i < chunks.length) {
-          data = Buffer.concat([data, chunks[i++].buf || Buffer.alloc(0)]);
-        }
-        contentType = detectMimeType(data, `${txid}:${vout}`, contentType);
-      } else {
-        throw new Error("Not a doginal");
-      }
+  if (parts[1] !== String.fromCharCode(IDENTIFIER[0])) throw new Error("Not a Dunes script");
+
+  const payload = Buffer.concat(parts.slice(2).map(p => Buffer.from(p, "hex")));
+  let offset = 0;
+  const decoded = {
+    protocol: parts[1],
+    fields: []
+  };
+
+  while (offset < payload.length) {
+    // Read varint for tag
+    let tag = 0;
+    let shift = 0;
+    while (true) {
+      if (offset >= payload.length) break;
+      const byte = payload[offset++];
+      tag |= (byte & 0x7f) << shift;
+      if (!(byte & 0x80)) break;
+      shift += 7;
     }
-    if (showLogs) console.log(`✔️ RPC Extracted: ${contentType}, Data length: ${data.length}`);
-    return { contentType, data };
-  } catch (rpcError) {
-    console.warn(`RPC failed for ${txid}:${vout}: ${rpcError.message}`);
+
+    // Read value based on tag
+    let value;
+    if (tag === Tag.Dune) {
+      // Read varint for dune value
+      let duneValue = 0n;
+      shift = 0;
+      while (true) {
+        if (offset >= payload.length) break;
+        const byte = payload[offset++];
+        duneValue |= BigInt(byte & 0x7f) << BigInt(shift);
+        if (!(byte & 0x80)) break;
+        shift += 7;
+      }
+      value = duneValue.toString();
+    } else if (tag === Tag.Body) {
+      // Parse edicts
+      const edicts = [];
+      let lastId = 0n;
+      while (offset < payload.length) {
+        let idDelta = 0n, amount = 0n, output = 0;
+        for (const field of ['idDelta', 'amount', 'output']) {
+          let num = 0;
+          shift = 0;
+          while (true) {
+            if (offset >= payload.length) break;
+            const byte = payload[offset++];
+            num |= (byte & 0x7f) << shift;
+            if (!(byte & 0x80)) break;
+            shift += 7;
+          }
+          if (field === 'idDelta') idDelta = BigInt(num);
+          else if (field === 'amount') amount = BigInt(num);
+          else output = num;
+        }
+        if (idDelta === 0n && amount === 0n && output === 0) break;
+        edicts.push({ id: (lastId + idDelta).toString(), amount: amount.toString(), output });
+        lastId += idDelta;
+      }
+      value = edicts;
+    } else {
+      // Read varint or bytes
+      let num = 0;
+      shift = 0;
+      while (true) {
+        if (offset >= payload.length) break;
+        const byte = payload[offset++];
+        num |= (byte & 0x7f) << shift;
+        if (!(byte & 0x80)) break;
+        shift += 7;
+      }
+      value = num.toString();
+    }
+    decoded.fields.push({ tag, value });
   }
-  console.warn(`All extraction methods failed for ${txid}:${vout}`);
-  return null;
+  return decoded;
 }
 function chunkToNumber(chunk) {
   if (chunk.opcodenum === 0) return 0;
@@ -1572,6 +1618,93 @@ async function indexMempoolAndPending(walletAddress) {
     fs.writeFileSync("./utxo.json", JSON.stringify(utxos, null, 2));
   } catch (e) {
     console.warn("Failed to index mempool:", e.message);
+  }
+}
+async function extractOpReturnMessages(txid) {
+  try {
+    const rawTx = await getRawTransaction(txid, 1);
+    const messages = [];
+    for (const output of rawTx.vout) {
+      if (output.scriptPubKey.type === "nulldata") {
+        const script = new Script(output.scriptPubKey.hex);
+        const data = Buffer.concat(script.chunks.slice(1).map(chunk => chunk.buf || Buffer.alloc(0)));
+        let message;
+        if (data[0] === IDENTIFIER[0]) { // Check for 'D' protocol identifier
+          try {
+            const decoded = await decodeDunesScript(script.toString());
+            message = JSON.stringify(decoded, null, 2); // Display decoded Dunes data
+          } catch (e) {
+            message = `Dunes script (hex): ${data.toString('hex')}`; // Fallback to hex
+          }
+        } else {
+          try {
+            message = data.toString('utf8');
+            if (!/^[ -~]*$/.test(message) && message !== '') {
+              throw new Error('Non-printable characters detected');
+            }
+          } catch (e) {
+            message = data.toString('latin1'); // Preserve all bytes
+          }
+        }
+        messages.push(message);
+      }
+    }
+    return messages;
+  } catch (e) {
+    console.warn(`Failed to extract OP_RETURN messages for TXID ${txid}: ${e.message}`);
+    return [];
+  }
+}
+async function getTxOpReturnMessages(txids) {
+  const uniqueTxids = [...new Set(txids)];
+  const messagesMap = new Map();
+  for (const txid of uniqueTxids) {
+    const messages = await extractOpReturnMessages(txid);
+    messagesMap.set(txid, messages);
+  }
+  return messagesMap;
+}
+async function extractOpMessage(txid) {
+  const messages = await extractOpReturnMessages(txid);
+  if (messages.length === 0) {
+    console.log(`No OP_RETURN messages found for TXID ${txid}`);
+  } else {
+    console.log(`OP_RETURN Messages for TXID ${txid}:`);
+    messages.forEach((msg, i) => {
+      console.log(`  Message ${i + 1}: ${msg}`);
+    });
+  }
+}
+async function extractOpMessageAll() {
+  const wallet = JSON.parse(fs.readFileSync(WALLET_PATH));
+  const transactions = await listTransactions(wallet.address, 10000, 0, true);
+  const txids = [...new Set(transactions.map(tx => tx.txid))]; // Ensure unique TXIDs
+  const txMessages = await getTxOpReturnMessages(txids);
+
+  // Cross-reference with UTXO data
+  const utxoMessages = new Map();
+  wallet.utxos.forEach(u => {
+    if (u.opReturnMessages && u.opReturnMessages.length > 0) {
+      utxoMessages.set(u.txid, u.opReturnMessages);
+    }
+  });
+
+  let messageCount = 0;
+  console.log("OP_RETURN Messages in Wallet Transaction History:");
+  for (const txid of txids) {
+    let messages = txMessages.get(txid) || utxoMessages.get(txid) || [];
+    if (messages.length > 0) {
+      console.log(`  TXID: ${txid}`);
+      messages.forEach((msg, i) => {
+        console.log(`    Message ${i + 1}: ${msg}`);
+      });
+      messageCount += messages.length;
+    }
+  }
+  if (messageCount === 0) {
+    console.log("  No OP_RETURN messages found in wallet history.");
+  } else {
+    console.log(`Total OP_RETURN messages found: ${messageCount}`);
   }
 }
 async function walletSync() {
@@ -1697,6 +1830,16 @@ async function walletSync() {
     }
     return utxo;
   }));
+  // Fetch OP_RETURN messages for all UTXOs' transactions
+  const txids = [...new Set(wallet.utxos.map(u => u.txid))];
+  const txMessages = await getTxOpReturnMessages(txids);
+  // Attach messages to UTXOs
+  wallet.utxos.forEach(u => {
+    u.opReturnMessages = txMessages.get(u.txid) || [];
+  });
+  // Count UTXOs with messages
+  const numUtxosWithMessages = wallet.utxos.filter(u => u.opReturnMessages.length > 0).length;
+  console.log(`Total UTXOs with OP_RETURN messages: ${numUtxosWithMessages}`);
   // Fetch DRC-20 balances from ORD API
   try {
     const drc20Res = await drc20Api.get(`/${wallet.address}`);
@@ -2215,7 +2358,81 @@ async function printAllUtxos() {
   const wallet = JSON.parse(fs.readFileSync(WALLET_PATH));
   console.log(`"address": "${wallet.address}",`);
   console.log(`"account": "1st Apestract Doginals Inscriber"`);
-  console.log(JSON.stringify(wallet.utxos, null, 2));
+  console.log("UTXOs:");
+  wallet.utxos.forEach((u, index) => {
+    console.log(`  ${index + 1}. TXID: ${u.txid}, Vout: ${u.vout}`);
+    console.log(`     Satoshis: ${u.satoshis}`);
+    console.log(`     Confirmations: ${u.confirmations || 0}`);
+    console.log(`     Type: ${u.type}`);
+    console.log(`     Script: ${u.script}`);
+    console.log(`     Address: ${u.address}`);
+    console.log(`     Account: ${u.account}`);
+
+    // Display inscription metadata
+    if (u.data) {
+      u.data.forEach((d, i) => {
+        console.log(`     Inscription Data ${i + 1}:`);
+        if (d.inscriptionId) console.log(`       Inscription ID: ${d.inscriptionId}`);
+        if (d.inscriptionNumber) console.log(`       Inscription Number: ${d.inscriptionNumber}`);
+        console.log(`       Content Type: ${d.contentType}`);
+        console.log(`       Content Length: ${d.contentLength}`);
+        if (d.inscribedAt) console.log(`       Inscribed At: ${d.inscribedAt}`);
+        if (d.blockHeight) console.log(`       Block Height: ${d.blockHeight}`);
+        if (d.inscribedBy) console.log(`       Inscribed By: ${d.inscribedBy}`);
+        console.log(`       Owner: ${d.owner}`);
+        console.log(`       UTXO: ${d.utxo}`);
+        console.log(`       Output Value: ${d.outputValue}`);
+        console.log(`       Offset: ${d.offset}`);
+        console.log(`       Listed: ${d.listed}`);
+        if (d.txs) console.log(`       Transactions: ${d.txs.join(', ')}`);
+
+        // NFT metadata
+        if (u.type === "nft" && d.nft) {
+          console.log(`       NFT Metadata:`);
+          if (d.nft.collectionId) console.log(`         Collection ID: ${d.nft.collectionId}`);
+          if (d.nft.itemName) console.log(`         Item Name: ${d.nft.itemName}`);
+          if (d.nft.itemId) console.log(`         Item ID: ${d.nft.itemId}`);
+          if (d.nft.attributes) console.log(`         Attributes: ${JSON.stringify(d.nft.attributes, null, 2)}`);
+        }
+
+        // Dogemap metadata
+        if (u.type === "dogemaps" && d.dogemap) {
+          console.log(`       Dogemap: ${d.dogemap}.dogemap`);
+        }
+      });
+    }
+
+    // DRC-20 metadata
+    if (u.type === "doge20" && u.drc20s) {
+      u.drc20s.forEach((d, i) => {
+        console.log(`     DRC-20 Data ${i + 1}:`);
+        console.log(`       Ticker: ${d.drc20}`);
+        console.log(`       Total Amount Available: ${d.totalAmountAvailable}`);
+        console.log(`       Transferable Amount: ${d.transferableAmount}`);
+        console.log(`       Total: ${d.total}`);
+        console.log(`       Total Transferred Into Wallet: ${d.totalTransferedIntoWallet}`);
+        console.log(`       Total Transferred Out Of Wallet: ${d.totalTransferedOutOfWallet}`);
+      });
+    }
+
+    // Dunes metadata
+    if (u.type === "dunes" && u.dunes) {
+      u.dunes.forEach((d, i) => {
+        console.log(`     Dunes Data ${i + 1}:`);
+        console.log(`       Dune: ${d.dune}`);
+        console.log(`       Amount: ${d.amount}`);
+        console.log(`       UTXO: ${d.utxo}`);
+      });
+    }
+
+    // OP_RETURN messages
+    if (u.opReturnMessages && u.opReturnMessages.length > 0) {
+      console.log(`     Messages:`);
+      u.opReturnMessages.forEach((msg, i) => {
+        console.log(`       Message ${i + 1}: ${msg}`);
+      });
+    }
+  });
 }
 async function fund(wallet, tx, onlySafe = true) {
   let availableUtxos = wallet.utxos.filter((u) => {
