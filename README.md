@@ -1,6 +1,3 @@
-
-![Doginals_much_fun](https://github.com/user-attachments/assets/9694472f-9627-4177-9b0b-10691a41b73e)
-
 # 🐶 Đoginals Unleashed v4.2.0
 
 ℹ️ This is a Fork of a Fork, of a Fork, to create the Ultimate Degen Fork for all things **Doginals!!!**  Much Retard Activated, So Insane!!!!
@@ -8,15 +5,15 @@
 - This is a fork/based on [apezord/ord-dogecoin](https://github.com/apezord/ord-dogecoin)
 - This is a fork/based on [apezord/doginals](https://github.com/apezord/doginals)
 - This is a fork/based on [BigChiefs/doginals](https://github.com/martinseeger2002/doginals)
-- This is also a fork/based on [sirduney/dunes-cli](https://github.com//sirduney/dunes-cli))
-- This is also a fork/based on [dpaydrc20/Delegates](https://github.com/dpaydrc20/Delegates))
+- This is also a fork/based on[sirduney/dunes-cli](https://github.com//sirduney/dunes-cli))
+- This is also a fork/based on[dpaydrc20/Delegates](https://github.com/dpaydrc20/Delegates))
 
 ***Much Madness!!!!!!!***
 
 ## 🔍 Overview
 ### Doginals - Dogecoin Protocol & Inscriptions CLI Tool
 
-A comprehensive minter and protocol for all inscriptions on Dogecoin, now updated with added support for Delegation rights, Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and marketplace interactions, and advanced UTXO handling on Dogecoin. In this repo is the full UNLEASHED & ENHANCED  `doginals.js` script with the necessary coresponding files, updates, instructions, and examples to handle delegate and child inscriptions, Regular Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and limited marketplace interactions "again, we're working on it". Also included in this repo are `Doginals.md`, `Readme.md`, a `Delegates.md`, `DNS.md`, and `Dunes.md` file  in the docs folder, detailing each individual protocol in depth, for better understanding.
+A comprehensive minter and protocol for all inscriptions on Dogecoin, now updated with added support for Delegation rights, Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and marketplace interactions, and advanced UTXO handling on Dogecoin. In this repo is the full UNLEASHED & ENHANCED  `doginals.js` script with the necessary coresponding files, updates, instructions, and examples to handle delegate and child inscriptions, Regular Doginal NFT Inscriptions, DRC-20, Dunes, Dogemaps, DNS, and limited marketplace interactions "again, we're working on it". Also included in repo is n original `doginals.js Readme.md`, a `Delegates.md`, `DNS.md`, and `Dunes.md file detailing each iindividual protocol in depth, for better understanding.
 
 
 ## ⚠️⚠️⚠️ Important ⚠️⚠️⚠️
@@ -205,8 +202,8 @@ Back up your wallet.dat file (in the data directory) and secure it.
 **Clone the repository and install dependencies:**
 
 ```
-git clone [https://github.com/your-repo/doginals.git](https://github.com/GreatApe42069/doginals.git)
-cd <path to your doginals folder> , e.g."C:\Doginals-main"
+git clone https://github.com/your-repo/doginals.git
+cd <path to your doginals folder, e.g."C:\Doginals-main">
 npm install
 npm audit fix
 ```
@@ -1471,6 +1468,136 @@ node . market inscription 15f3b73df7e5c072becb1d84191843ba080734805addfccb650929
 Output: Displays content, e.g., Inscription content for 15f3b73... on dogelabs: { "contentType": "text/plain", "data": "Woof!" }
 
 
+## 📜 Additions added to README for `getInscriptionIdForUtxo` and OP_RETURN Extraction
+
+### New Function: `getInscriptionIdForUtxo`
+
+The `getInscriptionIdForUtxo` function has been updated to handle inscription detection for UTXOs more robustly, reducing console noise by suppressing non-critical 404 errors from the ORD API. This function checks if a UTXO is associated with an inscription by querying the ORD API and falling back to RPC for OP_RETURN script analysis.
+
+**Purpose**:
+- Identifies whether a UTXO contains an inscription (e.g., Doginal, NFT, DRC-20, Dune, Dogemap).
+- Silences non-critical 404 errors from the ORD API when no inscription is found, ensuring cleaner console output.
+- Maintains fallback to RPC to verify transaction existence and extract OP_RETURN data if needed.
+
+**Key Features**:
+- Queries the ORD API to check for inscriptions at `https://wonky-ord-v2.dogeord.io/output/<txid>:<vout>`.
+- Uses Cheerio to parse inscription data from API responses.
+- Falls back to RPC (`getRawTransaction`) to validate transaction existence and analyze OP_RETURN scripts.
+- Suppresses warnings for 404 errors (indicating no inscription), reducing console clutter.
+
+**Implementation Details**:
+- Located in `doginals.js`.
+- Handles both inscribed and non-inscribed UTXOs gracefully.
+- Ensures UTXOs are correctly classified as `spendable` when no inscription is found.
+
+**Example Usage in Code**:
+
+```javascript
+const inscriptionId = await getInscriptionIdForUtxo("be39780a171f119bb4d10602df955f95959bf987d8b3fff5f6ee13087cb91702", 0);
+if (inscriptionId) {
+  console.log(`Inscription found: ${inscriptionId}`);
+} else {
+  console.log("No inscription found, UTXO is spendable");
+}
+```
+
+**Output**:
+```
+No inscription found, UTXO is spendable
+```
+
+### New Command: Extract OP_RETURN Messages
+
+The `doginals.js` script now supports extracting and decoding OP_RETURN messages from transactions, useful for inspecting protocol messages (e.g., DRC-20, Dunes) or custom messages embedded in transactions.
+
+**Command**:
+node . extractOpMessage <TXID> <vout Optional>
+
+```
+node . extractOpMessage 6697024c1f2a0663c1b5f4b06decfaef23ded396ef265d9232ab41b5e73b9760
+```
+
+OUTPUT: 
+
+```
+OP_RETURN Messages for TXID 6697024c1f2a0663c1b5f4b06decfaef23ded396ef265d9232ab41b5e73b9760:
+  Message 1: Testing some more trying to get it perfect
+
+```
+node . extractOpMessageAll      // I broke it, ill fix it later not important at moment
+```
+
+OUTPUT: 
+
+```
+OP_RETURN Messages in Wallet Transaction History:
+  No OP_RETURN messages found in wallet history. <txid> [vout]
+```
+
+**Parameters**:
+- `<txid>`: Transaction ID (required).
+- `[vout]`: Output index (optional, defaults to 0).
+
+**Purpose**:
+- Retrieves the raw transaction using RPC (`getrawtransaction`).
+- Extracts and decodes the OP_RETURN script from the specified output.
+- Displays the decoded message in human-readable format (e.g., text, JSON, or protocol-specific data).
+
+
+**Notes**:
+- Requires a running Dogecoin node with RPC access configured in `.env` (e.g., `NODE_RPC_URL`, `NODE_RPC_USER`, `NODE_RPC_PASS`).
+- The command leverages the `getRawTransaction` RPC call to fetch transaction data and parse the `scriptPubKey` for OP_RETURN scripts.
+- Useful for debugging inscriptions, verifying protocol messages, or extracting custom messages embedded in transactions (e.g., from `wallet send` or `dunes sendNoProtocol` commands).
+
+### Integration with Existing Commands
+
+The `getInscriptionIdForUtxo` function enhances the following commands by improving UTXO classification and reducing error noise:
+- `node . wallet sync`: Uses `getInscriptionIdForUtxo` to better classify UTXOs as spendable or inscribed, now with quieter 404 error handling.
+- `node . printAllUtxos`: Displays UTXO details, including inscription status, relying on `getInscriptionIdForUtxo` for accurate detection and displaying any messages found in the utxo.
+- `node . printSafeUtxos`: Lists only spendable UTXOs, benefiting from the function’s robust inscription checks.
+
+**Example Output from `node . wallet sync`** (showing improved behavior):
+
+```
+PS C:\Doginals-main> node . wallet sync
+Syncing UTXOs with RPC and ORD API...
+RPC fetched 6 UTXOs
+Total unique UTXOs: 6
+Total UTXOs with OP_RETURN messages: 1
+
+Wallet synced:
+
+"1st Apestract Doginals Inscriber"
+DEtfMQ1Kc97g2MnaKhNMkU7CRX7sr15Pvi
+
+Wallet synced:
+"1st Apestract Doginals Inscriber"
+DEtfMQ1Kc97g2MnaKhNMkU7CRX7sr15Pvi
+
+- Total Balance: 1.07706341 DOGE
+- Spendable Balance: 1.07306341 DOGE
+- Total Inscriptions: 4 (Value: 0.00400000 DOGE)
+- Doginal\NFT Inscriptions: 1 (Value: 0.00100000 DOGE)
+- Dunes: 1 (Value: 0.00100000 DOGE)
+  * SNOOP•DOGE•COIN: 42 🔥
+- DRC-20: 1 (Value: 0.00100000 DOGE)
+  * DOGX: 100
+- DNS: 0 (Value: 0.00000000 DOGE)
+- Dogemaps: 1 (Value: 0.00100000 DOGE)
+  * 1488914.dogemap
+- Delegates: 0 (Value: 0.00000000 DOGE)
+- Other Inscriptions: 0 (Value: 0.00000000 DOGE)
+```
+
+**Note**: Dropped Count of Op messages, or 404 error warnings (e.g., `ORD API failed for be39780a171f119bb4d10602df955f95959bf987d8b3fff5f6ee13087cb91702:0`) a 404 Error for Inscription: The ORD API failed for be39780a...02:0: Request failed with status code 404 indicates that one UTXO (be39780a171f119bb4d10602df955f95959bf987d8b3fff5f6ee13087cb91702:0) was not found in the ORD API which is correct in this particular case with my wallet. This could be a non-inscription UTXO valued between .001 and 0.01 in value of dogecoin, this is the threshold I set to help aoto classify utxos so they can be checked before becoming spendable.
+
+### Why These Additions Matter
+- **Improved User Experience**: Keeps new messaging functions isolated, making it easier to focus on actual issues during wallet syncs or UTXO operations.
+- **Enhanced Debugging**: The `extract-op-return` command provides a straightforward way to inspect OP_RETURN messages, aiding in protocol verification and debugging.
+- **Real-World Examples**: The examples use realistic transaction IDs and outputs, making it easier for users to read the messages they send or recieve
+- **Seamless Integration**: The updated function and new command align with existing features, maintaining the script’s decentralized ethos and compatibility with Dogecoin’s blockchain.
+
+
 ## Viewing
 
 **Start the server:**
@@ -1593,9 +1720,6 @@ If you'd like to contribute or donate to this project, please donate in Dogecoin
 
 This software is Open-source, Decentralized, an FREE to use, Donations are accepted, but never expected, to support The Contributers of Doginals send any Donations in Dogecoin to the following Contributors:
 
-<img width="758" height="242" alt="image" src="https://github.com/user-attachments/assets/0e25c885-5a01-4b77-9206-096b234ec97b" />
-
-
 ***You can donate to*** **Duney** ***here:***
 
 "handle": ***"SirDuney"*** "at": [***"@SirDuney"***](https://x.com/sirduney))
@@ -1638,5 +1762,6 @@ This software is Open-source, Decentralized, an FREE to use, Donations are accep
 **"Đogecoin_address": **<Make a pull request @reallyshadydev>**
 
 
-#                                       MUCH WOW
-![MAXIMUM_WOOF](https://github.com/user-attachments/assets/a45915e5-1f32-43cd-99c3-12b7054a7fb4)
+
+![image](https://github.com/user-attachments/assets/92ad2d4c-b3b1-4464-b9c0-708038634770)
+
