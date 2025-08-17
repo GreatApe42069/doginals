@@ -428,8 +428,10 @@ DEtfMQ1Kc97g2MnaKhNMkU7CRX7sr15Pvi
 
 **Send DOGE**
 
+```
 `node . wallet send <address> <amount> [Optional message up to 50 chars]`
 
+```
 ```
 node . wallet send DC8iWykpcZS6HVZdCNLvJehunRyXotGoHH 5 "Such Sending You a Message in OP RETURN"
 ```
@@ -1511,7 +1513,9 @@ No inscription found, UTXO is spendable
 The `doginals.js` script now supports extracting and decoding OP_RETURN messages from transactions, useful for inspecting protocol messages (e.g., DRC-20, Dunes) or custom messages embedded in transactions.
 
 **Command**:
-node . extractOpMessage <TXID> <vout Optional>
+
+
+`node . extractOpMessage <TXID> <vout Optional>`
 
 ```
 node . extractOpMessage 6697024c1f2a0663c1b5f4b06decfaef23ded396ef265d9232ab41b5e73b9760
@@ -1522,6 +1526,7 @@ OUTPUT:
 ```
 OP_RETURN Messages for TXID 6697024c1f2a0663c1b5f4b06decfaef23ded396ef265d9232ab41b5e73b9760:
   Message 1: Testing some more trying to get it perfect
+```
 
 ```
 node . extractOpMessageAll      // I broke it, ill fix it later not important at moment
